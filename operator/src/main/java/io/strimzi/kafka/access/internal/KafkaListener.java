@@ -15,8 +15,12 @@ import org.apache.kafka.common.security.auth.SecurityProtocol;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static io.strimzi.kafka.access.internal.KafkaParser.LISTENER_AUTH_NONE;
 
@@ -131,10 +135,39 @@ public class KafkaListener {
         data.put("bootstrap-servers", bootstrapServers);
         if (this.tls) {
             Optional.ofNullable(this.caCertSecret)
-                    .map(secretData -> secretData.get("ca.crt"))
-                    .ifPresent(cert -> data.put("ssl.truststore.crt", cert));
+                    .map(KafkaListener::buildCaBundle)
+                    .ifPresent(bundle -> data.put("ssl.truststore.crt", bundle));
         }
         return data;
+    }
+
+    private static final Pattern PEM_CERTIFICATE = Pattern.compile(
+            "-----BEGIN CERTIFICATE-----[\\s\\S]*?-----END CERTIFICATE-----");
+
+    // Bundle both current and previous Cluster CAs so clients survive CA key replacement.
+    private static String buildCaBundle(final Map<String, String> secretData) {
+        final Base64.Decoder decoder = Base64.getDecoder();
+        final List<String> anchors = secretData.entrySet().stream()
+                .filter(entry -> entry.getKey().endsWith(".crt"))
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new String(decoder.decode(entry.getValue()), StandardCharsets.UTF_8))
+                .map(KafkaListener::lastCertificate)
+                .flatMap(Optional::stream)
+                .toList();
+        if (anchors.isEmpty()) {
+            return null;
+        }
+        final String bundle = anchors.stream().collect(Collectors.joining("\n", "", "\n"));
+        return Base64.getEncoder().encodeToString(bundle.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static Optional<String> lastCertificate(final String pem) {
+        final Matcher matcher = PEM_CERTIFICATE.matcher(pem);
+        String last = null;
+        while (matcher.find()) {
+            last = matcher.group();
+        }
+        return Optional.ofNullable(last);
     }
 
     private SecurityProtocol getSecurityProtocol() {
