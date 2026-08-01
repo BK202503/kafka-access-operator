@@ -115,8 +115,8 @@ public class KafkaListenerTest {
     }
 
     @Test
-    @DisplayName("When a .crt entry contains a certificate chain, then only the last certificate (root) is included in the trust bundle")
-    void testTLSKafkaListenerCollapsesChainToTrustAnchor() {
+    @DisplayName("When a .crt entry contains a certificate chain, then only the leaf CA cert (first in the file) is included in the trust bundle")
+    void testTLSKafkaListenerCollapsesChainToLeafCert() {
         final String chain = "-----BEGIN CERTIFICATE-----\nLEAFCERT\n-----END CERTIFICATE-----\n"
                 + "-----BEGIN CERTIFICATE-----\nINTERMED\n-----END CERTIFICATE-----\n"
                 + "-----BEGIN CERTIFICATE-----\nROOTCERT\n-----END CERTIFICATE-----\n";
@@ -128,7 +128,7 @@ public class KafkaListenerTest {
 
         final Map<String, String> secretData = listener.getConnectionSecretData();
 
-        final String expectedBundle = encodeToString("-----BEGIN CERTIFICATE-----\nROOTCERT\n-----END CERTIFICATE-----\n");
+        final String expectedBundle = encodeToString("-----BEGIN CERTIFICATE-----\nLEAFCERT\n-----END CERTIFICATE-----\n");
         assertThat(secretData).containsEntry("ssl.truststore.crt", expectedBundle);
     }
 

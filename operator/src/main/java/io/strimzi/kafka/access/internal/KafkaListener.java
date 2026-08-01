@@ -147,27 +147,23 @@ public class KafkaListener {
     // Bundle both current and previous Cluster CAs so clients survive CA key replacement.
     private static String buildCaBundle(final Map<String, String> secretData) {
         final Base64.Decoder decoder = Base64.getDecoder();
-        final List<String> anchors = secretData.entrySet().stream()
+        final List<String> leaves = secretData.entrySet().stream()
                 .filter(entry -> entry.getKey().endsWith(".crt"))
                 .sorted(Map.Entry.comparingByKey())
                 .map(entry -> new String(decoder.decode(entry.getValue()), StandardCharsets.UTF_8))
-                .map(KafkaListener::lastCertificate)
+                .map(KafkaListener::firstCertificate)
                 .flatMap(Optional::stream)
                 .toList();
-        if (anchors.isEmpty()) {
+        if (leaves.isEmpty()) {
             return null;
         }
-        final String bundle = anchors.stream().collect(Collectors.joining("\n", "", "\n"));
+        final String bundle = leaves.stream().collect(Collectors.joining("\n", "", "\n"));
         return Base64.getEncoder().encodeToString(bundle.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static Optional<String> lastCertificate(final String pem) {
+    private static Optional<String> firstCertificate(final String pem) {
         final Matcher matcher = PEM_CERTIFICATE.matcher(pem);
-        String last = null;
-        while (matcher.find()) {
-            last = matcher.group();
-        }
-        return Optional.ofNullable(last);
+        return matcher.find() ? Optional.of(matcher.group()) : Optional.empty();
     }
 
     private SecurityProtocol getSecurityProtocol() {
