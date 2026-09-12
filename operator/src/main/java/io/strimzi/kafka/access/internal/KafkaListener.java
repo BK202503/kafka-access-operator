@@ -29,6 +29,9 @@ import static io.strimzi.kafka.access.internal.KafkaParser.LISTENER_AUTH_NONE;
  */
 public class KafkaListener {
 
+    private static final Pattern PEM_CERTIFICATE = Pattern.compile(
+            "-----BEGIN CERTIFICATE-----[\\s\\S]*?-----END CERTIFICATE-----");
+
     private final String name;
     private final KafkaListenerType type;
     private final boolean tls;
@@ -140,9 +143,6 @@ public class KafkaListener {
         }
         return data;
     }
-
-    private static final Pattern PEM_CERTIFICATE = Pattern.compile(
-            "-----BEGIN CERTIFICATE-----[\\s\\S]*?-----END CERTIFICATE-----");
 
     // Bundle both current and previous Cluster CAs so clients survive CA key replacement.
     private static String buildCaBundle(final Map<String, String> secretData) {
